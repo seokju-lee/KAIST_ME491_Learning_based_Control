@@ -32,10 +32,12 @@ class ENVIRONMENT {
     auto* robot = world_.addArticulatedSystem(resourceDir + "/anymal/urdf/anymal.urdf");
     robot->setName(PLAYER_NAME);
     robot->setControlMode(raisim::ControlMode::PD_PLUS_FEEDFORWARD_TORQUE);
+    controller_.setPlayerNum(0);
 
     auto* dummy_robot = world_.addArticulatedSystem(resourceDir + "/anymal/urdf/anymal_blue.urdf");
     dummy_robot->setName("Opponent");
     dummy_robot->setControlMode(raisim::ControlMode::PD_PLUS_FEEDFORWARD_TORQUE);
+    dummyController_.setPlayerNum(1);
 
     controller_.setName(PLAYER_NAME);
     controller_.setOpponentName("Opponent");
@@ -52,6 +54,8 @@ class ENVIRONMENT {
     /// Reward coefficients
     rewards_.initializeFromConfigurationFile (cfg["reward"]);
 
+    prev_action.setZero(12);
+
     /// visualize if it is the first environment
     if (visualizable_) {
       server_ = std::make_unique<raisim::RaisimServer>(&world_);
@@ -67,18 +71,26 @@ class ENVIRONMENT {
   void reset() {
     auto theta = uniDist_(gen_) * 2 * M_PI;
     controller_.reset(&world_, theta);
+    dummyController_.reset(&world_, theta);
   }
 
   float step(const Eigen::Ref<EigenVec> &action) {
     controller_.advance(&world_, action);
+    dummyController_.advance(&world_, prev_action);
     for (int i = 0; i < int(control_dt_ / simulation_dt_ + 1e-10); i++) {
       if (server_) server_->lockVisualizationServerMutex();
       world_.integrate();
       if (server_) server_->unlockVisualizationServerMutex();
     }
     controller_.updateObservation(&world_);
+    dummyController_.updateObservation(&world_);
     controller_.recordReward(&rewards_);
+    // prev_action = action;
     return rewards_.sum();
+  }
+
+  void prev_step(const Eigen::Ref<EigenVec> &action){
+    prev_action = action;
   }
 
   void observe(Eigen::Ref<EigenVec> ob) {
@@ -88,6 +100,10 @@ class ENVIRONMENT {
 
   bool isTerminalState(float &terminalReward) {
     if(controller_.isTerminalState(&world_)) {
+      terminalReward = terminalRewardCoeff_;
+      return true;
+    }
+    else if(dummyController_.isTerminalState(&world_)){
       terminalReward = terminalRewardCoeff_;
       return true;
     }
@@ -131,6 +147,7 @@ class ENVIRONMENT {
   bool visualizable_ = false;
   double terminalRewardCoeff_ = -10.;
   TRAINING_CONTROLLER controller_, dummyController_;
+  Eigen::VectorXf prev_action;
   raisim::World world_;
   raisim::Reward rewards_;
   double simulation_dt_ = 0.001;
@@ -142,4 +159,3 @@ class ENVIRONMENT {
 thread_local std::mt19937 raisim::ENVIRONMENT::gen_;
 thread_local std::uniform_real_distribution<double> raisim::ENVIRONMENT::uniDist_(0., 1.);
 }
-
