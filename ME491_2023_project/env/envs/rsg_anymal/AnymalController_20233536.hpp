@@ -13,8 +13,8 @@
 
 namespace raisim {
 
-/// change the class name and file name ex) AnymalController_00000000 -> AnymalController_STUDENT_ID
-class AnymalController_00000000 {
+/// change the class name and file name ex) AnymalController_20233536 -> AnymalController_STUDENT_ID
+class AnymalController_20233536 {
 
  public:
   inline bool create(raisim::World *world) {
@@ -30,6 +30,8 @@ class AnymalController_00000000 {
     gc_init_.setZero(gcDim_);
     gv_.setZero(gvDim_);
     gv_init_.setZero(gvDim_);
+    opponentGc.setZero(gcDim_);
+    opponentGv.setZero(gvDim_);
     pTarget_.setZero(gcDim_);
     vTarget_.setZero(gvDim_);
     pTarget12_.setZero(nJoints_);
@@ -47,7 +49,7 @@ class AnymalController_00000000 {
     anymal_->setGeneralizedForce(Eigen::VectorXd::Zero(gvDim_));
 
     /// MUST BE DONE FOR ALL ENVIRONMENTS
-    obDim_ = 34;
+    obDim_ = 44;
     actionDim_ = nJoints_;
     actionMean_.setZero(actionDim_);
     actionStd_.setZero(actionDim_);
@@ -95,8 +97,8 @@ class AnymalController_00000000 {
 
   inline void updateObservation(raisim::World *world) {
     anymal_->getState(gc_, gv_);
-    raisim::Vec<4> quat;
-    raisim::Mat<3, 3> rot;
+    raisim::Vec<4> quat, oppoquat;
+    raisim::Mat<3, 3> rot, opporot;
     quat[0] = gc_[3];
     quat[1] = gc_[4];
     quat[2] = gc_[5];
@@ -105,11 +107,24 @@ class AnymalController_00000000 {
     bodyLinearVel_ = rot.e().transpose() * gv_.segment(0, 3);
     bodyAngularVel_ = rot.e().transpose() * gv_.segment(3, 3);
 
+    auto opponent = reinterpret_cast<raisim::ArticulatedSystem *>(world->getObject(opponentName_));
+    opponent->getState(opponentGc, opponentGv);
+    oppoquat[0] = opponentGc[3];
+    oppoquat[1] = opponentGc[4];
+    oppoquat[2] = opponentGc[5];
+    oppoquat[3] = opponentGc[6];
+    raisim::quatToRotMat(oppoquat, opporot);
+    oppobodyLinearVel_ = opporot.e().transpose()*opponentGv.segment(0, 3);
+    oppobodyAngularVel_ = opporot.e().transpose()*opponentGv.segment(3, 3);
+
     obDouble_ << gc_[2], /// body pose
         rot.e().row(2).transpose(), /// body orientation
         gc_.tail(12), /// joint angles
         bodyLinearVel_, bodyAngularVel_, /// body linear&angular velocity
-        gv_.tail(12); /// joint velocity
+        gv_.tail(12), /// joint velocity
+        opponentGc[2], /// opponent pose
+        opporot.e().row(2).transpose(), /// opponent body orientation
+        oppobodyLinearVel_, oppobodyAngularVel_; /// oppponent body linear&angular velocity
   }
 
   inline void recordReward(Reward *rewards) {
@@ -155,9 +170,10 @@ class AnymalController_00000000 {
   std::string name_, opponentName_;
   int gcDim_, gvDim_, nJoints_, playerNum_ = 0;
   raisim::ArticulatedSystem *anymal_;
-  Eigen::VectorXd gc_init_, gv_init_, gc_, gv_, pTarget_, pTarget12_, vTarget_;
+  Eigen::VectorXd gc_init_, gv_init_, gc_, gv_, opponentGc, opponentGv, pTarget_, pTarget12_, vTarget_;
   Eigen::VectorXd actionMean_, actionStd_, obDouble_;
   Eigen::Vector3d bodyLinearVel_, bodyAngularVel_;
+  Eigen::Vector3d oppobodyLinearVel_, oppobodyAngularVel_;
   std::set<size_t> footIndices_;
   int obDim_ = 0, actionDim_ = 0;
   double forwardVelRewardCoeff_ = 0.;
