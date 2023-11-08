@@ -13,10 +13,22 @@ environment:
   reward:
     forwardVel:
       coeff: 0.3
+    backwardVel:
+      coeff: -0.3
+    rightVel:
+      coeff: -0.05
+    leftVel:
+      coeff: 0.05
     opponentBase:
-      coeff: 0.5
+      coeff: 2.5
     opponentOut:
-      coeff: 1.5
+      coeff: 0.8
+    opponentbaseHeight:
+      coeff: 0.6
+    centerdist:
+      coeff: 0.5
+    baseHeight:
+      coeff: -0.5
     torque:
       coeff: -4e-5
 
