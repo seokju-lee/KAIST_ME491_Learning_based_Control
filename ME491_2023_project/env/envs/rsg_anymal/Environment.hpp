@@ -31,12 +31,21 @@ class ENVIRONMENT {
     /// add objects
     auto* robot = world_.addArticulatedSystem(resourceDir + "/anymal/urdf/anymal.urdf");
     robot->setName(PLAYER_NAME);
-    controller_.setName(PLAYER_NAME);
     robot->setControlMode(raisim::ControlMode::PD_PLUS_FEEDFORWARD_TORQUE);
+
+    auto* dummy_robot = world_.addArticulatedSystem(resourceDir + "/anymal/urdf/anymal_blue.urdf");
+    dummy_robot->setName("Opponent");
+    dummy_robot->setControlMode(raisim::ControlMode::PD_PLUS_FEEDFORWARD_TORQUE);
+
+    controller_.setName(PLAYER_NAME);
+    controller_.setOpponentName("Opponent");
+    dummyController_.setName("Opponent");
+    dummyController_.setOpponentName(PLAYER_NAME);
 
     world_.addGround();
 
     controller_.create(&world_);
+    dummyController_.create(&world_);
     READ_YAML(double, simulation_dt_, cfg["simulation_dt"])
     READ_YAML(double, control_dt_, cfg["control_dt"])
 
@@ -121,7 +130,7 @@ class ENVIRONMENT {
  private:
   bool visualizable_ = false;
   double terminalRewardCoeff_ = -10.;
-  TRAINING_CONTROLLER controller_;
+  TRAINING_CONTROLLER controller_, dummyController_;
   raisim::World world_;
   raisim::Reward rewards_;
   double simulation_dt_ = 0.001;
