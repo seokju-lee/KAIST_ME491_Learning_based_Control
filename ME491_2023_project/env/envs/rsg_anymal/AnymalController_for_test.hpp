@@ -46,7 +46,7 @@ class AnymalController_for_test {
     anymal_->setGeneralizedForce(Eigen::VectorXd::Zero(gvDim_));
 
     /// MUST BE DONE FOR ALL ENVIRONMENTS
-    obDim_ = 34;
+    obDim_ = 48;
     actionDim_ = nJoints_;
     actionMean_.setZero(actionDim_);
     actionStd_.setZero(actionDim_);
@@ -95,8 +95,8 @@ class AnymalController_for_test {
 
   inline void updateObservation(raisim::World *world) {
     anymal_->getState(gc_, gv_);
-    raisim::Vec<4> quat;
-    raisim::Mat<3, 3> rot;
+    raisim::Vec<4> quat, oppoquat;
+    raisim::Mat<3, 3> rot, opporot;
     quat[0] = gc_[3];
     quat[1] = gc_[4];
     quat[2] = gc_[5];
@@ -108,16 +108,23 @@ class AnymalController_for_test {
     ///////////////////////////////////////////////////////////////////////////////////////////////
     /// if you want use opponent robot`s state, use like below code
     auto opponent = reinterpret_cast<raisim::ArticulatedSystem *>(world->getObject(opponentName_));
-    Eigen::VectorXd opponentGc(gcDim_);
-    Eigen::VectorXd opponentGv(gvDim_);
     opponent->getState(opponentGc, opponentGv);
-    ///////////////////////////////////////////////////////////////////////////////////////////////
+    oppoquat[0] = opponentGc[3];
+    oppoquat[1] = opponentGc[4];
+    oppoquat[2] = opponentGc[5];
+    oppoquat[3] = opponentGc[6];
+    raisim::quatToRotMat(oppoquat, opporot);
+    oppobodyLinearVel_ = opporot.e().transpose()*opponentGv.segment(0, 3);
+    oppobodyAngularVel_ = opporot.e().transpose()*opponentGv.segment(3, 3);
 
-    obDouble_ << gc_[2], /// body pose
+    obDouble_ << gc_.head(3), /// body pose
         rot.e().row(2).transpose(), /// body orientation
         gc_.tail(12), /// joint angles
         bodyLinearVel_, bodyAngularVel_, /// body linear&angular velocity
-        gv_.tail(12); /// joint velocity
+        gv_.tail(12), /// joint velocity
+        opponentGc.head(3), /// opponent pose
+        opporot.e().row(2).transpose(), /// opponent body orientation
+        oppobodyLinearVel_, oppobodyAngularVel_; /// oppponent body linear&angular velocity
   }
 
   inline const Eigen::VectorXd &getObservation() {
@@ -157,9 +164,10 @@ class AnymalController_for_test {
   std::string name_, opponentName_;
   int gcDim_, gvDim_, nJoints_, playerNum_ = 1;
   raisim::ArticulatedSystem *anymal_;
-  Eigen::VectorXd gc_init_, gv_init_, gc_, gv_, pTarget_, pTarget12_, vTarget_;
+  Eigen::VectorXd gc_init_, gv_init_, gc_, gv_, opponentGc, opponentGv, pTarget_, pTarget12_, vTarget_;
   Eigen::VectorXd actionMean_, actionStd_, obDouble_;
   Eigen::Vector3d bodyLinearVel_, bodyAngularVel_;
+  Eigen::Vector3d oppobodyLinearVel_, oppobodyAngularVel_;
   std::set<size_t> footIndices_;
   int obDim_ = 0, actionDim_ = 0;
 };
