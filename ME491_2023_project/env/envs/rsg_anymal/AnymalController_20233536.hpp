@@ -34,6 +34,7 @@ class AnymalController_20233536 {
     opponentGv.setZero(gvDim_);
     pTarget_.setZero(gcDim_);
     vTarget_.setZero(gvDim_);
+    o_pTarget_.setZero(gcDim_);
     pTarget12_.setZero(nJoints_);
 
     /// this is nominal configuration of anymal
@@ -54,6 +55,7 @@ class AnymalController_20233536 {
     actionMean_.setZero(actionDim_);
     actionStd_.setZero(actionDim_);
     obDouble_.setZero(obDim_);
+    // action_set.push_back(Eigen::VectorXd::Zero(gcDim_));
 
     /// action scaling
     actionMean_ = gc_init_.tail(nJoints_);
@@ -79,6 +81,25 @@ class AnymalController_20233536 {
     pTarget12_ += actionMean_;
     pTarget_.tail(nJoints_) = pTarget12_;
     anymal_->setPdTarget(pTarget_, vTarget_);
+    return true;
+  }
+
+  Eigen::VectorXd generateTraj(raisim::World *world){
+    // action_set.push_back(pTarget_);
+    // if (action_set.size() > 1){
+    //   action_set.erase(action_set.begin());
+    // }
+    // return action_set;
+    return pTarget_;
+  }
+
+  inline bool prev_advance(raisim::World *world, Eigen::VectorXd traj) {
+    /// action scaling
+    // if (traj.size() > 1){
+    //   o_pTarget_.tail(nJoints_) = traj[1];
+    // }
+    o_pTarget_.tail(nJoints_) = Eigen::VectorXd::Zero(12);
+    anymal_->setPdTarget(o_pTarget_, vTarget_);
     return true;
   }
 
@@ -139,12 +160,14 @@ class AnymalController_20233536 {
     if((rot.e().transpose()*opponentGc.head(3))[1] < 0){
       rewards->record("leftVel", std::max(-0.5, bodyLinearVel_[1]));
     }
-    Eigen::Vector2f err;
-    err << gc_[0]-(opponentGc[0]-0.3), gc_[1]-opponentGc[1];
-    rewards->record("opponentBase", exp(-err.squaredNorm()));
-    rewards->record("centerdist", 1/(1+exp(gc_.head(2).squaredNorm())));
-    rewards->record("opponentOut", 1/(4*(1+exp(-opponentGc.head(2).squaredNorm()))));
-    rewards->record("opponentbaseHeight", 1/(4*(1+exp(-opponentGc[2]))));
+    // Eigen::Vector2f err;
+    // err << gc_[0]-opponentGc[0], gc_[1]-opponentGc[1];
+    // rewards->record("opponentBase", exp(-abs(gc_[0]-opponentGc[0])));
+    // rewards->record("opponentBase", exp(-abs(gc_[1]-opponentGc[1])));
+    rewards->record("opponentBase", exp(-(gc_.head(3)-opponentGc.head(3)).squaredNorm()));
+    // rewards->record("centerdist", 1/(1+exp(gc_.head(2).squaredNorm())));
+    // rewards->record("opponentOut", 1/(4*(1+exp(-opponentGc.head(2).squaredNorm()))));
+    // rewards->record("opponentbaseHeight", 1/(4*(1+exp(-opponentGc[2]))));
   }
 
   inline const Eigen::VectorXd &getObservation() {
@@ -185,13 +208,14 @@ class AnymalController_20233536 {
   std::string name_, opponentName_;
   int gcDim_, gvDim_, nJoints_, playerNum_ = 0;
   raisim::ArticulatedSystem *anymal_;
-  Eigen::VectorXd gc_init_, gv_init_, gc_, gv_, opponentGc, opponentGv, pTarget_, pTarget12_, vTarget_;
+  Eigen::VectorXd gc_init_, gv_init_, gc_, gv_, opponentGc, opponentGv, pTarget_, pTarget12_, vTarget_, o_pTarget_;
   Eigen::VectorXd actionMean_, actionStd_, obDouble_;
   Eigen::Vector3d bodyLinearVel_, bodyAngularVel_;
   Eigen::Vector3d oppobodyLinearVel_, oppobodyAngularVel_;
   raisim::Vec<4> quat, oppoquat;
   raisim::Mat<3, 3> rot, opporot;
   std::set<size_t> footIndices_;
+  std::vector<Eigen::VectorXd> action_set;
   int obDim_ = 0, actionDim_ = 0;
   double forwardVelRewardCoeff_ = 0.;
   double torqueRewardCoeff_ = 0.;
