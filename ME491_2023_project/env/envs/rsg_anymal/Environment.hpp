@@ -19,7 +19,6 @@
 #include "../../Reward.hpp"
 
 #include TRAINING_HEADER_FILE_TO_INCLUDE
-
 namespace raisim {
 
 class ENVIRONMENT {
@@ -54,8 +53,6 @@ class ENVIRONMENT {
     /// Reward coefficients
     rewards_.initializeFromConfigurationFile (cfg["reward"]);
 
-    prev_action.setZero(12);
-
     /// visualize if it is the first environment
     if (visualizable_) {
       server_ = std::make_unique<raisim::RaisimServer>(&world_);
@@ -76,7 +73,8 @@ class ENVIRONMENT {
 
   float step(const Eigen::Ref<EigenVec> &action) {
     controller_.advance(&world_, action);
-    dummyController_.advance(&world_, prev_action);
+    // traj_ = controller_.generateTraj(&world_);
+    dummyController_.prev_advance(&world_, traj_);
     for (int i = 0; i < int(control_dt_ / simulation_dt_ + 1e-10); i++) {
       if (server_) server_->lockVisualizationServerMutex();
       world_.integrate();
@@ -87,10 +85,6 @@ class ENVIRONMENT {
     controller_.recordReward(&rewards_);
     // prev_action = action;
     return rewards_.sum();
-  }
-
-  void prev_step(const Eigen::Ref<EigenVec> &action){
-    prev_action = action;
   }
 
   void observe(Eigen::Ref<EigenVec> ob) {
@@ -153,6 +147,8 @@ class ENVIRONMENT {
   double simulation_dt_ = 0.001;
   double control_dt_ = 0.01;
   std::unique_ptr<raisim::RaisimServer> server_;
+  // std::vector<Eigen::VectorXd> traj_;
+  Eigen::VectorXd traj_;
   thread_local static std::uniform_real_distribution<double> uniDist_;
   thread_local static std::mt19937 gen_;
 };
