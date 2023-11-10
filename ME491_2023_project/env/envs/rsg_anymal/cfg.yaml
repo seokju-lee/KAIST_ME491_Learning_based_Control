@@ -19,14 +19,18 @@ environment:
       coeff: -0.05
     leftVel:
       coeff: 0.05
-    opponentBase:
-      coeff: 2.5
+    bodyout:
+      coeff: 0.5
+    opponentPos:
+      coeff: 3.5
+    opponentOri:
+      coeff: 1.5
     opponentOut:
       coeff: 0.8
     opponentbaseHeight:
       coeff: 0.6
     centerdist:
-      coeff: 0.5
+      coeff: 0.001
     baseHeight:
       coeff: -0.5
     torque:
