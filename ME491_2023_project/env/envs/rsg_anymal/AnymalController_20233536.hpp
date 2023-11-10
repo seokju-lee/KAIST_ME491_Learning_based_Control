@@ -98,7 +98,7 @@ class AnymalController_20233536 {
     // if (traj.size() > 1){
     //   o_pTarget_.tail(nJoints_) = traj[1];
     // }
-    o_pTarget_.tail(nJoints_) = Eigen::VectorXd::Zero(12);
+    o_pTarget_.tail(nJoints_) << 0.03, 0.4, -0.8, -0.03, 0.4, -0.8, 0.03, -0.4, 0.8, -0.03, -0.4, 0.8;
     anymal_->setPdTarget(o_pTarget_, vTarget_);
     return true;
   }
@@ -148,24 +148,34 @@ class AnymalController_20233536 {
 
   inline void recordReward(Reward *rewards) {
     rewards->record("torque", anymal_->getGeneralizedForce().squaredNorm());
-    if((rot.e().transpose()*opponentGc.head(3))[0] > 0){
-      rewards->record("forwardVel", std::min(1.0, bodyLinearVel_[0]));
-    }
-    if((rot.e().transpose()*opponentGc.head(3))[0] < 0){
-      rewards->record("backwardVel", std::max(-1.0, bodyLinearVel_[0]));
-    }
-    if((rot.e().transpose()*opponentGc.head(3))[1] > 0){
-      rewards->record("rightVel", std::min(0.5, bodyLinearVel_[1]));
-    }
-    if((rot.e().transpose()*opponentGc.head(3))[1] < 0){
-      rewards->record("leftVel", std::max(-0.5, bodyLinearVel_[1]));
-    }
+    // if((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[0] > 0){
+    rewards->record("forwardVel", std::min(1.0, bodyLinearVel_[0]));
+    // }
+    // if((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[0] < 0){
+    //   rewards->record("backwardVel", std::max(-1.0, bodyLinearVel_[0]));
+    // }
+    // if(((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[0] > 0) && ((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[1] > 0)){
+    //   rewards->record("rightVel", std::max(-0.5, bodyAngularVel_[2]));
+    // }
+    // if(((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[0] > 0) && ((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[1] < 0)){
+    //   rewards->record("leftVel", std::min(0.5, bodyAngularVel_[2]));
+    // }
+    // if(((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[0] < 0) && ((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[1] > 0)){
+    //   rewards->record("leftVel", std::min(0.5, bodyAngularVel_[2]));
+    // }
+    // if(((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[0] < 0) && ((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[1] < 0)){
+    //   rewards->record("rightVel", std::max(-0.5, bodyAngularVel_[2]));
+    // }
     // Eigen::Vector2f err;
     // err << gc_[0]-opponentGc[0], gc_[1]-opponentGc[1];
-    // rewards->record("opponentBase", exp(-abs(gc_[0]-opponentGc[0])));
-    // rewards->record("opponentBase", exp(-abs(gc_[1]-opponentGc[1])));
-    rewards->record("opponentBase", exp(-(gc_.head(3)-opponentGc.head(3)).squaredNorm()));
-    // rewards->record("centerdist", 1/(1+exp(gc_.head(2).squaredNorm())));
+    // rewards->record("opponentPos", 1/(1+exp((gc_.head(2)-opponentGc.head(2)).norm())));
+    // rewards->record("opponentPos", exp(-abs(gc_[1]-opponentGc[1])));
+    // rewards->record("opponentOri", )
+    // if(gc_.head(2).squaredNorm() > 2.6){
+    //   rewards->record("bodyout", -1.0);
+    // }
+    rewards->record("opponentPos", exp(-(gc_.head(2)-opponentGc.head(2)).norm()));
+    // rewards->record("centerdist", 1/(1+exp(gc_.head(2).norm())));
     // rewards->record("opponentOut", 1/(4*(1+exp(-opponentGc.head(2).squaredNorm()))));
     // rewards->record("opponentbaseHeight", 1/(4*(1+exp(-opponentGc[2]))));
   }
