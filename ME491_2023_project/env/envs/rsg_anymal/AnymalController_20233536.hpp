@@ -50,13 +50,14 @@ class AnymalController_20233536 {
     anymal_->setGeneralizedForce(Eigen::VectorXd::Zero(gvDim_));
 
     /// MUST BE DONE FOR ALL ENVIRONMENTS
-    obDim_ = 48;
+    obDim_ = 49;
     actionDim_ = nJoints_;
     actionMean_.setZero(actionDim_);
     actionStd_.setZero(actionDim_);
     obDouble_.setZero(obDim_);
     // action_set.push_back(Eigen::VectorXd::Zero(gcDim_));
-
+    // auto* ground = world->addGround();
+    // ground->setName("ground");
     /// action scaling
     actionMean_ = gc_init_.tail(nJoints_);
     actionStd_.setConstant(0.1);
@@ -136,6 +137,17 @@ class AnymalController_20233536 {
     oppobodyLinearVel_ = opporot.e().transpose()*opponentGv.segment(0, 3);
     oppobodyAngularVel_ = opporot.e().transpose()*opponentGv.segment(3, 3);
 
+    for (auto &contact: opponent->getContacts()){
+      if((contact.getPairObjectIndex() == 2 &&
+          contact.getlocalBodyIndex() == opponent->getBodyIdx("base")) |
+          (opponentGc.head(2).norm() > 3)){
+        rewaboutopo = 5.;
+      }
+      else{
+        rewaboutopo = 0.;
+      }
+    }
+
     obDouble_ << gc_.head(3), /// body pose
         rot.e().row(2).transpose(), /// body orientation
         gc_.tail(12), /// joint angles
@@ -143,41 +155,30 @@ class AnymalController_20233536 {
         gv_.tail(12), /// joint velocity
         opponentGc.head(3), /// opponent pose
         opporot.e().row(2).transpose(), /// opponent body orientation
-        oppobodyLinearVel_, oppobodyAngularVel_; /// oppponent body linear&angular velocity
+        oppobodyLinearVel_, oppobodyAngularVel_, /// oppponent body linear&angular velocity
+        rewaboutopo;
   }
 
   inline void recordReward(Reward *rewards) {
     rewards->record("torque", anymal_->getGeneralizedForce().squaredNorm());
-    // if((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[0] > 0){
-    rewards->record("forwardVel", std::min(1.0, bodyLinearVel_[0]));
-    // }
-    // if((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[0] < 0){
-    //   rewards->record("backwardVel", std::max(-1.0, bodyLinearVel_[0]));
-    // }
-    // if(((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[0] > 0) && ((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[1] > 0)){
-    //   rewards->record("rightVel", std::max(-0.5, bodyAngularVel_[2]));
-    // }
-    // if(((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[0] > 0) && ((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[1] < 0)){
-    //   rewards->record("leftVel", std::min(0.5, bodyAngularVel_[2]));
-    // }
-    // if(((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[0] < 0) && ((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[1] > 0)){
-    //   rewards->record("leftVel", std::min(0.5, bodyAngularVel_[2]));
-    // }
-    // if(((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[0] < 0) && ((rot.e().transpose()*(opponentGc.head(3)-gc_.head(3)))[1] < 0)){
-    //   rewards->record("rightVel", std::max(-0.5, bodyAngularVel_[2]));
-    // }
-    // Eigen::Vector2f err;
-    // err << gc_[0]-opponentGc[0], gc_[1]-opponentGc[1];
-    // rewards->record("opponentPos", 1/(1+exp((gc_.head(2)-opponentGc.head(2)).norm())));
-    // rewards->record("opponentPos", exp(-abs(gc_[1]-opponentGc[1])));
-    // rewards->record("opponentOri", )
-    // if(gc_.head(2).squaredNorm() > 2.6){
-    //   rewards->record("bodyout", -1.0);
-    // }
+    rewards->record("forwardVel", std::min(1.0, bodyLinearVel_[0]));\
+    Eigen::VectorXd target_vector, target_direction, base_direction;
+    double cosine;
+    target_vector = opponentGc.head(2) - gc_.head(2);
+    target_direction = target_vector/target_vector.norm();
+    base_direction = gc_.head(2)/gc_.head(2).norm();
+    cosine = target_direction.dot(base_direction);
+    if(cosine < 0){
+      rewards->record("opponentOri", 0);
+    }
+    else{
+      rewards->record("opponentOri", cosine);
+    }
     rewards->record("opponentPos", exp(-(gc_.head(2)-opponentGc.head(2)).norm()));
-    // rewards->record("centerdist", 1/(1+exp(gc_.head(2).norm())));
+    rewards->record("opponentOut", rewaboutopo);
+    rewards->record("baseHeight", exp(-abs(gc_[2]-0.5)));
     // rewards->record("opponentOut", 1/(4*(1+exp(-opponentGc.head(2).squaredNorm()))));
-    // rewards->record("opponentbaseHeight", 1/(4*(1+exp(-opponentGc[2]))));
+    // rewards->record("opponentbaseHeight", 1/(1+exp(-opponentGc[2])));
   }
 
   inline const Eigen::VectorXd &getObservation() {
@@ -197,10 +198,15 @@ class AnymalController_20233536 {
   }
 
   inline bool isTerminalState(raisim::World *world) {
+    // std::cout << "Index: " << world->getObject("ground")->getIndexInWorld() << "\n";
     for (auto &contact: anymal_->getContacts()) {
-      if (footIndices_.find(contact.getlocalBodyIndex()) == footIndices_.end()) {
+      if (contact.getPairObjectIndex() == 2 &&
+          contact.getlocalBodyIndex() == anymal_->getBodyIdx("base")) {
         return true;
       }
+    }
+    if (gc_.head(2).norm() > 3) {
+      return true;
     }
     return false;
   }
@@ -227,6 +233,7 @@ class AnymalController_20233536 {
   std::set<size_t> footIndices_;
   std::vector<Eigen::VectorXd> action_set;
   int obDim_ = 0, actionDim_ = 0;
+  double rewaboutopo;
   double forwardVelRewardCoeff_ = 0.;
   double torqueRewardCoeff_ = 0.;
 };
