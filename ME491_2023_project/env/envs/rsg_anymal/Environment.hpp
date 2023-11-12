@@ -44,7 +44,7 @@ class ENVIRONMENT {
     dummyController_.setOpponentName(PLAYER_NAME);
 
     world_.addGround();
-
+    // std::cout << "Index: " << world_.getObject("ground")->getIndexInWorld() << "\n";
     controller_.create(&world_);
     dummyController_.create(&world_);
     READ_YAML(double, simulation_dt_, cfg["simulation_dt"])
