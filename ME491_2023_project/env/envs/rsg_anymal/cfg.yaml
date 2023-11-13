@@ -13,26 +13,22 @@ environment:
   reward:
     forwardVel:
       coeff: 0.3
-    backwardVel:
-      coeff: -0.3
-    rightVel:
-      coeff: -0.05
-    leftVel:
-      coeff: 0.05
+    angularVel:
+      coeff: 0.3
     bodyout:
       coeff: 0.5
     opponentPos:
-      coeff: 3.5
+      coeff: 0.5
+    opponentPospenalty:
+      coeff: 0.005
     opponentOri:
       coeff: 1.5
     opponentOut:
-      coeff: 0.8
+      coeff: 1.0
     opponentbaseHeight:
       coeff: 0.6
-    centerdist:
-      coeff: 0.001
     baseHeight:
-      coeff: -0.5
+      coeff: 0.2
     torque:
       coeff: -4e-5
 
