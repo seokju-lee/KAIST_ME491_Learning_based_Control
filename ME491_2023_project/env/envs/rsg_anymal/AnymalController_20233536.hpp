@@ -196,7 +196,13 @@ class AnymalController_20233536 {
     //   rewards->record("torque", 0.0);
     // }
     // else{
-    rewards->record("torque", anymal_->getGeneralizedForce().squaredNorm());
+    if(target_vector.norm() < 0.6){
+      rewards->record("torque", 0);
+    }
+    else{
+      rewards->record("torque", anymal_->getGeneralizedForce().squaredNorm());
+    }
+    
     // }
     // rewards->record("opponentPos", exp(-(gc_.head(2)-opponentGc.head(2)).norm()));
     // if((gc_.head(2)-opponentGc.head(2)).norm() < 0.4){
