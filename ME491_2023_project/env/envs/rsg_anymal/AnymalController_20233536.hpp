@@ -167,7 +167,7 @@ class AnymalController_20233536 {
 
   inline void recordReward(Reward *rewards) {
     rewards->record("torque", anymal_->getGeneralizedForce().squaredNorm());
-    rewards->record("forwardVel", std::min(1.0, bodyLinearVel_[0]));
+    rewards->record("forwardVel", std::min(4.0, bodyLinearVel_[0]));
     Eigen::VectorXd target_vector, target_direction, base_direction;
     double cosine;
     target_vector = opponentGc.head(2) - gc_.head(2);
@@ -181,17 +181,18 @@ class AnymalController_20233536 {
     else{
       rewards->record("opponentOri", cosine);
     }
-    for (auto &contact: anymal_->getContacts()) {
-      for (auto &contact_: opponent->getContacts()){
-        if(contact.getlocalBodyIndex() == anymal_->getBodyIdx("base") &&
-          contact_.getlocalBodyIndex() == opponent->getBodyIdx("base")){
-            rewards->record("opponentPos", 5.0);
-        }
-        else{
-          rewards->record("opponentPos", exp(-(gc_.head(2)-opponentGc.head(2)).norm()));
-        } 
-      }
-    }
+    // for (auto &contact: anymal_->getContacts()) {
+    //   for (auto &contact_: opponent->getContacts()){
+    //     if(contact.getlocalBodyIndex() == anymal_->getBodyIdx("base") &&
+    //       contact_.getlocalBodyIndex() == opponent->getBodyIdx("base")){
+    //         rewards->record("opponentPos", 5.0);
+    //     }
+    //     // else{
+    //     //   rewards->record("opponentPos", exp(-(gc_.head(2)-opponentGc.head(2)).norm()));
+    //     // } 
+    //   }
+    // }
+    // rewards->record("opponentPos", exp(-(gc_.head(2)-opponentGc.head(2)).norm()));
     // if((gc_.head(2)-opponentGc.head(2)).norm() < 0.4){
     //   rewards->record("opponentPos", 5.0);
     // }
@@ -222,15 +223,18 @@ class AnymalController_20233536 {
   inline bool isTerminalState(raisim::World *world) {
     // std::cout << "Index: " << world->getObject("ground")->getIndexInWorld() << "\n";
     for (auto &contact: anymal_->getContacts()) {
-      if (contact.getPairObjectIndex() == 2 &&
-          contact.getlocalBodyIndex() != anymal_->getBodyIdx("LF_SHANK") &&
-          contact.getlocalBodyIndex() != anymal_->getBodyIdx("RF_SHANK") &&
-          contact.getlocalBodyIndex() != anymal_->getBodyIdx("LH_SHANK") &&
-          contact.getlocalBodyIndex() != anymal_->getBodyIdx("RH_SHANK")) {
+      if (footIndices_.find(contact.getlocalBodyIndex()) == footIndices_.end()) {
         for (auto &contact_: opponent->getContacts()){
-          if(contact_.getlocalBodyIndex() == opponent->getBodyIdx("base")){
-            return false;
+          // if(contact_.getlocalBodyIndex() == opponent->getBodyIdx("base")){
+          //   return false;
+          // }
+          oppcontact_.push_back(contact_.getlocalBodyIndex());
+        }
+        if(oppcontact_.size() != 0){
+          if(contact.getPairObjectIndex() == 2 && contact.getlocalBodyIndex() == anymal_->getBodyIdx("base")){
+            return true;
           }
+          return false;
         }
         return true;
       }
@@ -261,6 +265,7 @@ class AnymalController_20233536 {
   raisim::Vec<4> quat, oppoquat;
   raisim::Mat<3, 3> rot, opporot;
   std::set<size_t> footIndices_;
+  std::vector<int> oppcontact_;
   std::vector<Eigen::VectorXd> action_set;
   int obDim_ = 0, actionDim_ = 0;
   double rewaboutopo, oppositetouch_;
