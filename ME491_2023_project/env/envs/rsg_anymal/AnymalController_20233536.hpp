@@ -196,12 +196,12 @@ class AnymalController_20233536 {
     //   rewards->record("torque", 0.0);
     // }
     // else{
-    if(target_vector.norm() < 0.6){
-      rewards->record("torque", 0);
-    }
-    else{
-      rewards->record("torque", anymal_->getGeneralizedForce().squaredNorm());
-    }
+    // if(target_vector.norm() < 0.6){
+    //   rewards->record("torque", 0);
+    // }
+    // else{
+    rewards->record("torque", anymal_->getGeneralizedForce().squaredNorm());
+    // }
     
     // }
     // rewards->record("opponentPos", exp(-(gc_.head(2)-opponentGc.head(2)).norm()));
@@ -234,29 +234,92 @@ class AnymalController_20233536 {
 
   inline bool isTerminalState(raisim::World *world) {
     // std::cout << "Index: " << world->getObject("ground")->getIndexInWorld() << "\n";
-    for (auto &contact: anymal_->getContacts()) {
-      if (footIndices_.find(contact.getlocalBodyIndex()) == footIndices_.end()) {
-        for (auto &contact_: opponent->getContacts()){
-          // if(contact_.getlocalBodyIndex() == opponent->getBodyIdx("base")){
-          //   return false;
-          // }
-          if(contact_.getlocalBodyIndex() != opponent->getBodyIdx("LF_SHANK") &&
-            contact_.getlocalBodyIndex() != opponent->getBodyIdx("RF_SHANK") &&
-            contact_.getlocalBodyIndex() != opponent->getBodyIdx("LH_SHANK") &&
-            contact_.getlocalBodyIndex() != opponent->getBodyIdx("RH_SHANK")){
-            oppcontact_.push_back(contact_.getlocalBodyIndex());
-          }  
-        }
-        if(oppcontact_.size() != 0){
-          if(contact.getPairObjectIndex() == ground->getIndexInWorld() && 
-            contact.getlocalBodyIndex() == anymal_->getBodyIdx("base")){
-            return true;
-          }
+    // for (auto &contact: anymal_->getContacts()) {
+    //   if (footIndices_.find(contact.getlocalBodyIndex()) == footIndices_.end()) {
+    //     for (auto &contact_: opponent->getContacts()){
+    //       // if(contact_.getlocalBodyIndex() == opponent->getBodyIdx("base")){
+    //       //   return false;
+    //       // }
+    //       if(contact_.getlocalBodyIndex() != opponent->getBodyIdx("LF_SHANK") &&
+    //         contact_.getlocalBodyIndex() != opponent->getBodyIdx("RF_SHANK") &&
+    //         contact_.getlocalBodyIndex() != opponent->getBodyIdx("LH_SHANK") &&
+    //         contact_.getlocalBodyIndex() != opponent->getBodyIdx("RH_SHANK")){
+    //         oppcontact_.push_back(contact_.getlocalBodyIndex());
+    //       }  
+    //     }
+    //     if(oppcontact_.size() != 0){
+    //       if(contact.getPairObjectIndex() == ground->getIndexInWorld() && 
+    //         contact.getlocalBodyIndex() == anymal_->getBodyIdx("base")){
+    //         return true;
+    //       }
+    //       return false;
+    //     }
+    //     return true;
+    //   }
+    // }
+
+    // std::vector<int> playerfootcontact_, playerbasecontact_, oppfootcontact_, oppbasecontact_;
+    for (auto &contact: anymal_->getContacts()){
+      if(contact.getlocalBodyIndex() == anymal_->getBodyIdx("LF_SHANK") |
+          contact.getlocalBodyIndex() == anymal_->getBodyIdx("RF_SHANK") |
+          contact.getlocalBodyIndex() == anymal_->getBodyIdx("LH_SHANK") |
+          contact.getlocalBodyIndex() == anymal_->getBodyIdx("RH_SHANK")){
+        return false;
+      }
+      else{
+        if(contact.getlocalBodyIndex() != anymal_->getBodyIdx("base")){
           return false;
         }
-        return true;
+        else{
+          for (auto &contact_: opponent->getContacts()){
+            if(contact_.getlocalBodyIndex() != opponent->getBodyIdx("LF_SHANK") &&
+              contact_.getlocalBodyIndex() != opponent->getBodyIdx("RF_SHANK") &&
+              contact_.getlocalBodyIndex() != opponent->getBodyIdx("LH_SHANK") &&
+              contact_.getlocalBodyIndex() != opponent->getBodyIdx("RH_SHANK")){
+              return false;
+            }
+            else{
+              return true;
+            }
+          }
+        }
       }
     }
+    // for (auto &contact: anymal_->getContacts()){
+    //   if(contact.getlocalBodyIndex() == anymal_->getBodyIdx("LF_SHANK") |
+    //       contact.getlocalBodyIndex() == anymal_->getBodyIdx("RF_SHANK") |
+    //       contact.getlocalBodyIndex() == anymal_->getBodyIdx("LH_SHANK") |
+    //       contact.getlocalBodyIndex() == anymal_->getBodyIdx("RH_SHANK")){
+    //     playerfootcontact_.push_back(1);
+    //   }
+    //   if(contact.getlocalBodyIndex() == anymal_->getBodyIdx("base")){
+    //     playerbasecontact_.push_back(1);
+    //   }
+    // }
+    // for(auto &contact_: opponent->getContacts()){
+    //   if(contact_.getlocalBodyIndex() == opponent->getBodyIdx("LF_SHANK") |
+    //       contact_.getlocalBodyIndex() == opponent->getBodyIdx("RF_SHANK") |
+    //       contact_.getlocalBodyIndex() == opponent->getBodyIdx("LH_SHANK") |
+    //       contact_.getlocalBodyIndex() == opponent->getBodyIdx("RH_SHANK")){
+    //     oppfootcontact_.push_back(1);
+    //   }
+    // }
+    // if(playerfootcontact_.size() != 0){
+    //   return false;
+    // }
+    // else{
+    //   if(playerbasecontact_.size() == 0){
+    //     return false;
+    //   }
+    //   else{
+    //     if(oppfootcontact_.size() == 0){
+    //       return false;
+    //     }
+    //     else{
+    //       return true;
+    //     }
+    //   }
+    // }
     if (gc_.head(2).norm() > 3) {
       return true;
     }
@@ -284,7 +347,6 @@ class AnymalController_20233536 {
   raisim::Vec<4> quat, oppoquat;
   raisim::Mat<3, 3> rot, opporot;
   std::set<size_t> footIndices_;
-  std::vector<int> oppcontact_, oppcontact__, playercontact__;
   std::vector<Eigen::VectorXd> action_set;
   int obDim_ = 0, actionDim_ = 0;
   double rewaboutopo, oppositetouch_;
