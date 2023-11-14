@@ -14,11 +14,11 @@ environment:
     forwardVel:
       coeff: 0.3
     angularVel:
-      coeff: 0.3
+      coeff: 0.5
     bodyout:
       coeff: 0.5
     opponentPos:
-      coeff: 0.5
+      coeff: 0.4
     opponentPospenalty:
       coeff: 0.005
     opponentOri:
@@ -29,6 +29,8 @@ environment:
       coeff: 0.6
     baseHeight:
       coeff: 0.2
+    win:
+      coeff: 3.0
     torque:
       coeff: -4e-5
 
