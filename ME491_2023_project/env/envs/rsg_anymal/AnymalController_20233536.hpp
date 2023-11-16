@@ -10,6 +10,7 @@
 #include <set>
 #include "../../BasicEigenTypes.hpp"
 #include "raisim/World.hpp"
+#define PI 3.1415926535898
 
 namespace raisim {
 
@@ -84,21 +85,21 @@ class AnymalController_20233536 {
     return true;
   }
 
-  Eigen::VectorXd generateTraj(raisim::World *world){
-    // action_set.push_back(pTarget_);
-    // if (action_set.size() > 1){
-    //   action_set.erase(action_set.begin());
-    // }
-    // return action_set;
-    return pTarget_;
+  std::vector<Eigen::VectorXd> generateTraj(raisim::World *world){
+    action_set.push_back(pTarget_);
+    if (action_set.size() > 2){
+      action_set.erase(action_set.begin());
+    }
+    return action_set;
+    // return pTarget_;
   }
 
-  inline bool prev_advance(raisim::World *world, Eigen::VectorXd traj) {
+  inline bool prev_advance(raisim::World *world, std::vector<Eigen::VectorXd> traj) {
     /// action scaling
-    // if (traj.size() > 1){
-    //   o_pTarget_.tail(nJoints_) = traj[1];
-    // }
-    o_pTarget_.tail(nJoints_) << 0.03, 0.4, -0.8, -0.03, 0.4, -0.8, 0.03, -0.4, 0.8, -0.03, -0.4, 0.8;
+    if (traj.size() > 1){
+      o_pTarget_.tail(nJoints_) = traj[1];
+    }
+    // o_pTarget_.tail(nJoints_) << 0.03, 0.4, -0.8, -0.03, 0.4, -0.8, 0.03, -0.4, 0.8, -0.03, -0.4, 0.8;
     anymal_->setPdTarget(o_pTarget_, vTarget_);
     return true;
   }
@@ -149,7 +150,7 @@ class AnymalController_20233536 {
   inline void recordReward(Reward *rewards) {
     rewards->record("forwardVel", std::min(4.0, bodyLinearVel_[0]));
     Eigen::VectorXd target_vector, target_direction, base_direction;
-    double cosine;
+    double cosine, roll, pitch;
     target_vector = opponentGc.head(2) - gc_.head(2);
     target_direction = target_vector/target_vector.norm();
     base_direction = gc_.head(2)/gc_.head(2).norm();
@@ -163,17 +164,31 @@ class AnymalController_20233536 {
     }
 
     rewards->record("torque", anymal_->getGeneralizedForce().squaredNorm());
-
-    // for(auto& contact: opponent->getContacts()){
-    //   if(contact.getPairObjectIndex() == ground->getIndexInWorld() &&
-    //       contact.getlocalBodyIndex() == opponent->getBodyIdx("base")){
-    //     reward("opponentOut", 2.0);
-    //   }
-    // }
-    // if(opponentGc.head(2).norm() > 3){
-    //   reward("opponentOut", 2.0);
-    // }
-    // rewards->record("oppbaseori", (opporot.e().row(2).transpose()-))
+    rewards->record("opp_center", exp(-opponentGc.head(2).norm()));
+    rewards->record("hit_oppo", opponent->getImpulse().squaredNorm());
+    rewards->record("center_dist", exp(-gc_.head(2).norm()));
+    // sparse part, win case
+    for(auto& contact: opponent->getContacts()) {
+      if(contact.getPairObjectIndex() == ground->getIndexInWorld() &&
+          contact.getlocalBodyIndex() == opponent->getBodyIdx("base")) {
+        rewards->record("win", 500);
+      }
+    }
+    if(opponentGc.head(2).norm() > 3){
+      rewards->record("win", 500);
+    }
+    // lose case
+    for(auto& contact: anymal_->getContacts()) {
+      if(contact.getPairObjectIndex() == ground->getIndexInWorld() &&
+          contact.getlocalBodyIndex() == anymal_->getBodyIdx("base")) {
+        rewards->record("lose", 500);
+      }
+    }
+    if(gc_.head(2).norm() > 3){
+      rewards->record("lose", 500);
+    }
+    // draw case
+    
   }
 
   inline const Eigen::VectorXd &getObservation() {
@@ -198,9 +213,6 @@ class AnymalController_20233536 {
     for (auto &contact: anymal_->getContacts()) {
       if (footIndices_.find(contact.getlocalBodyIndex()) == footIndices_.end()) {
         for (auto &contact_: opponent->getContacts()){
-          // if(contact_.getlocalBodyIndex() == opponent->getBodyIdx("base")){
-          //   return false;
-          // }
           if(contact_.getlocalBodyIndex() != opponent->getBodyIdx("LF_SHANK") &&
             contact_.getlocalBodyIndex() != opponent->getBodyIdx("RF_SHANK") &&
             contact_.getlocalBodyIndex() != opponent->getBodyIdx("LH_SHANK") &&
