@@ -43,8 +43,9 @@ class ENVIRONMENT {
     dummyController_.setName("Opponent");
     dummyController_.setOpponentName(PLAYER_NAME);
 
-    world_.addGround();
-    // std::cout << "Index: " << world_.getObject("ground")->getIndexInWorld() << "\n";
+    auto* ground = world_.addGround();
+    ground->setName("ground");
+
     controller_.create(&world_);
     dummyController_.create(&world_);
     READ_YAML(double, simulation_dt_, cfg["simulation_dt"])
@@ -72,9 +73,10 @@ class ENVIRONMENT {
   }
 
   float step(const Eigen::Ref<EigenVec> &action) {
-    controller_.advance(&world_, action);
-    // traj_ = controller_.generateTraj(&world_);
-    dummyController_.prev_advance(&world_, traj_);
+    EigenVec headPart = action.head(12);
+    controller_.advance(&world_, headPart);
+    EigenVec tailPart = action.tail(12);
+    dummyController_.advance(&world_, tailPart);
     for (int i = 0; i < int(control_dt_ / simulation_dt_ + 1e-10); i++) {
       if (server_) server_->lockVisualizationServerMutex();
       world_.integrate();
@@ -83,7 +85,6 @@ class ENVIRONMENT {
     controller_.updateObservation(&world_);
     dummyController_.updateObservation(&world_);
     controller_.recordReward(&rewards_);
-    // prev_action = action;
     return rewards_.sum();
   }
 
@@ -94,10 +95,6 @@ class ENVIRONMENT {
 
   bool isTerminalState(float &terminalReward) {
     if(controller_.isTerminalState(&world_)) {
-      terminalReward = terminalRewardCoeff_;
-      return true;
-    }
-    else if(dummyController_.isTerminalState(&world_)){
       terminalReward = terminalRewardCoeff_;
       return true;
     }
@@ -141,14 +138,11 @@ class ENVIRONMENT {
   bool visualizable_ = false;
   double terminalRewardCoeff_ = -10.;
   TRAINING_CONTROLLER controller_, dummyController_;
-  Eigen::VectorXf prev_action;
   raisim::World world_;
   raisim::Reward rewards_;
   double simulation_dt_ = 0.001;
   double control_dt_ = 0.01;
   std::unique_ptr<raisim::RaisimServer> server_;
-  // std::vector<Eigen::VectorXd> traj_;
-  Eigen::VectorXd traj_;
   thread_local static std::uniform_real_distribution<double> uniDist_;
   thread_local static std::mt19937 gen_;
 };
