@@ -15,16 +15,12 @@ environment:
       coeff: 0.3
     opponentOri:
       coeff: 1.5
-    opponentOut:
-      coeff: 1.0
-    oppbaseori:
-      coeff: 0.1
     opp_center:
-      coeff: -2e-4
+      coeff: -2e-5
     hit_oppo:
-      coeff: 0.2
+      coeff: 0.4
     center_dist:
-      coeff: 2e-4
+      coeff: 0.2
     win:
       coeff: 1.0
     lose:
