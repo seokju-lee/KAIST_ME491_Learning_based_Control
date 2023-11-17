@@ -79,12 +79,25 @@ ppo = PPO.PPO(actor=actor,
               shuffle_batch=False,
               )
 
+prev_ppo = PPO.PPO(actor=actor,
+              critic=critic,
+              num_envs=cfg['environment']['num_envs'],
+              num_transitions_per_env=n_steps,
+              num_learning_epochs=4,
+              gamma=0.998,
+              lam=0.95,
+              num_mini_batches=4,
+              device=device,
+              log_dir=saver.data_dir,
+              shuffle_batch=False,
+              )
+
 reward_analyzer = RewardAnalyzer(env, ppo.writer)
 
 if mode == 'retrain':
     load_param(weight_path, env, actor, critic, ppo.optimizer, saver.data_dir)
 
-for update in range(1000000):
+for update in range(10000):
     start = time.time()
     env.reset()
     reward_sum = 0
@@ -125,17 +138,26 @@ for update in range(1000000):
         env.reset()
         env.save_scaling(saver.data_dir, str(update))
 
+    # prev_action = None
+    
     # actual training
     for step in range(n_steps):
         obs = env.observe()
-        action = ppo.act(obs)
+        first_obs = obs[:,:12]
+        second_obs = obs[:,12:]
+        oppobs = np.hstack((second_obs[:,::-1], first_obs[:,::-1]))
+        action1 = ppo.act(obs)
+        action2 = prev_ppo.act(oppobs)
+        action = np.hstack((action1, action2))
         reward, dones = env.step(action)
         ppo.step(value_obs=obs, rews=reward, dones=dones)
         done_sum = done_sum + np.sum(dones)
         reward_sum = reward_sum + np.sum(reward)
+        # prev_action = ppo.act(oppobs)
 
     # take st step to get value obs
     obs = env.observe()
+    prev_ppo = ppo
     ppo.update(actor_obs=obs, value_obs=obs, log_this_iteration=update % 10 == 0, update=update)
     average_ll_performance = reward_sum / total_steps
     average_dones = done_sum / total_steps
