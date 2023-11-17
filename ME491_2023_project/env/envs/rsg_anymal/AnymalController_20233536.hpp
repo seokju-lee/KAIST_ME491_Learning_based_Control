@@ -10,7 +10,6 @@
 #include <set>
 #include "../../BasicEigenTypes.hpp"
 #include "raisim/World.hpp"
-#define PI 3.1415926535898
 
 namespace raisim {
 
@@ -52,7 +51,7 @@ class AnymalController_20233536 {
     anymal_->setGeneralizedForce(Eigen::VectorXd::Zero(gvDim_));
 
     /// MUST BE DONE FOR ALL ENVIRONMENTS
-    obDim_ = 49;
+    obDim_ = 24;
     actionDim_ = nJoints_;
     actionMean_.setZero(actionDim_);
     actionStd_.setZero(actionDim_);
@@ -82,25 +81,6 @@ class AnymalController_20233536 {
     pTarget12_ += actionMean_;
     pTarget_.tail(nJoints_) = pTarget12_;
     anymal_->setPdTarget(pTarget_, vTarget_);
-    return true;
-  }
-
-  std::vector<Eigen::VectorXd> generateTraj(raisim::World *world){
-    action_set.push_back(pTarget_);
-    if (action_set.size() > 2){
-      action_set.erase(action_set.begin());
-    }
-    return action_set;
-    // return pTarget_;
-  }
-
-  inline bool prev_advance(raisim::World *world, std::vector<Eigen::VectorXd> traj) {
-    /// action scaling
-    if (traj.size() > 1){
-      o_pTarget_.tail(nJoints_) = traj[1];
-    }
-    // o_pTarget_.tail(nJoints_) << 0.03, 0.4, -0.8, -0.03, 0.4, -0.8, 0.03, -0.4, 0.8, -0.03, -0.4, 0.8;
-    anymal_->setPdTarget(o_pTarget_, vTarget_);
     return true;
   }
 
@@ -138,13 +118,10 @@ class AnymalController_20233536 {
 
     obDouble_ << gc_.head(3), /// body pose
         rot.e().row(2).transpose(), /// body orientation
-        gc_.tail(12), /// joint angles
         bodyLinearVel_, bodyAngularVel_, /// body linear&angular velocity
-        gv_.tail(12), /// joint velocity
         opponentGc.head(3), /// opponent pose
         opporot.e().row(2).transpose(), /// opponent body orientation
-        oppobodyLinearVel_, oppobodyAngularVel_, /// oppponent body linear&angular velocity
-        oppositetouch_;
+        oppobodyLinearVel_, oppobodyAngularVel_; /// oppponent body linear&angular velocity
   }
 
   inline void recordReward(Reward *rewards) {
@@ -156,7 +133,6 @@ class AnymalController_20233536 {
     base_direction = gc_.head(2)/gc_.head(2).norm();
     cosine = target_direction.dot(base_direction);
     if(cosine < 0){
-      // rewards->record("angularVel", std::min(0.5, bodyAngularVel_[2]));
       rewards->record("opponentOri", 0);
     }
     else{
@@ -164,31 +140,17 @@ class AnymalController_20233536 {
     }
 
     rewards->record("torque", anymal_->getGeneralizedForce().squaredNorm());
-    rewards->record("opp_center", exp(-opponentGc.head(2).norm()));
-    rewards->record("hit_oppo", opponent->getImpulse().squaredNorm());
+    // rewards->record("opp_center", exp(-opponentGc.head(2).norm()));
+    // rewards->record("hit_oppo", opponent->getImpulse().squaredNorm());
     rewards->record("center_dist", exp(-gc_.head(2).norm()));
-    // sparse part, win case
-    for(auto& contact: opponent->getContacts()) {
-      if(contact.getPairObjectIndex() == ground->getIndexInWorld() &&
-          contact.getlocalBodyIndex() == opponent->getBodyIdx("base")) {
-        rewards->record("win", 500);
-      }
-    }
-    if(opponentGc.head(2).norm() > 3){
-      rewards->record("win", 500);
-    }
-    // lose case
-    for(auto& contact: anymal_->getContacts()) {
-      if(contact.getPairObjectIndex() == ground->getIndexInWorld() &&
-          contact.getlocalBodyIndex() == anymal_->getBodyIdx("base")) {
-        rewards->record("lose", 500);
-      }
-    }
-    if(gc_.head(2).norm() > 3){
-      rewards->record("lose", 500);
-    }
-    // draw case
-    
+    // sparse part
+    // if (player_die() && opponent_die()) {
+    //   rewards->record("draw", 2.5);
+    // }
+
+    // if (!player_die() && opponent_die()) {
+    //   rewards->record("win", 5.0);
+    // }
   }
 
   inline const Eigen::VectorXd &getObservation() {
@@ -207,30 +169,60 @@ class AnymalController_20233536 {
     playerNum_ = playerNum;
   }
 
-  inline bool isTerminalState(raisim::World *world) {
-    // std::cout << "Index: " << world->getObject("ground")->getIndexInWorld() << "\n";
-    std::vector<int> playerfootcontact_, playerbasecontact_, oppfootcontact_, oppbasecontact_, oppcontact_;
-    for (auto &contact: anymal_->getContacts()) {
-      if (footIndices_.find(contact.getlocalBodyIndex()) == footIndices_.end()) {
-        for (auto &contact_: opponent->getContacts()){
-          if(contact_.getlocalBodyIndex() != opponent->getBodyIdx("LF_SHANK") &&
-            contact_.getlocalBodyIndex() != opponent->getBodyIdx("RF_SHANK") &&
-            contact_.getlocalBodyIndex() != opponent->getBodyIdx("LH_SHANK") &&
-            contact_.getlocalBodyIndex() != opponent->getBodyIdx("RH_SHANK")){
-            oppcontact_.push_back(contact_.getlocalBodyIndex());
-          }  
-        }
-        if(oppcontact_.size() != 0){
-          if(contact.getPairObjectIndex() == ground->getIndexInWorld() && 
-            contact.getlocalBodyIndex() == anymal_->getBodyIdx("base")){
-            return true;
-          }
-          return false;
-        }
+  bool player_die(){
+    for(auto& contact: anymal_->getContacts()){
+      if(contact.getPairObjectIndex() == ground->getIndexInWorld() &&
+        contact.getlocalBodyIndex() == anymal_->getBodyIdx("base")){
         return true;
       }
     }
+    if (gc_.head(2).norm() > 3) {
+      return true;
+    }
+    return false;
+  }
 
+  bool opponent_die(){
+    for(auto& contact: opponent->getContacts()){
+      if(contact.getPairObjectIndex() == ground->getIndexInWorld() &&
+        contact.getlocalBodyIndex() == opponent->getBodyIdx("base")){
+        return true;
+      }
+    }
+    if (opponentGc.head(2).norm() > 3) {
+      return true;
+    }
+    return false;
+  }
+
+  inline bool isTerminalState(raisim::World *world) {
+    // std::vector<int> playerfootcontact_, playerbasecontact_, oppfootcontact_, oppbasecontact_, oppcontact_;
+    // for (auto &contact: anymal_->getContacts()) {
+    //   if (footIndices_.find(contact.getlocalBodyIndex()) == footIndices_.end()) {
+    //     for (auto &contact_: opponent->getContacts()){
+    //       if(contact_.getlocalBodyIndex() != opponent->getBodyIdx("LF_SHANK") &&
+    //         contact_.getlocalBodyIndex() != opponent->getBodyIdx("RF_SHANK") &&
+    //         contact_.getlocalBodyIndex() != opponent->getBodyIdx("LH_SHANK") &&
+    //         contact_.getlocalBodyIndex() != opponent->getBodyIdx("RH_SHANK")){
+    //         oppcontact_.push_back(contact_.getlocalBodyIndex());
+    //       }  
+    //     }
+    //     if(oppcontact_.size() != 0){
+    //       if(contact.getPairObjectIndex() == ground->getIndexInWorld() && 
+    //         contact.getlocalBodyIndex() == anymal_->getBodyIdx("base")){
+    //         return true;
+    //       }
+    //       return false;
+    //     }
+    //     return true;
+    //   }
+    // }
+    for(auto& contact: anymal_->getContacts()){
+      if(contact.getPairObjectIndex() == ground->getIndexInWorld() &&
+        contact.getlocalBodyIndex() == anymal_->getBodyIdx("base")){
+        return true;
+      }
+    }
     if (gc_.head(2).norm() > 3) {
       return true;
     }
