@@ -75,8 +75,11 @@ class ENVIRONMENT {
   float step(const Eigen::Ref<EigenVec> &action) {
     EigenVec headPart = action.head(12);
     controller_.advance(&world_, headPart);
+    // std::cout << "Action size: " << action.size() << "\n";
     EigenVec tailPart = action.tail(12);
     dummyController_.advance(&world_, tailPart);
+    // std::cout << "Head Part: \n" << headPart << "\n";
+    // std::cout << "Tail Part: \n" << tailPart << "\n";
     for (int i = 0; i < int(control_dt_ / simulation_dt_ + 1e-10); i++) {
       if (server_) server_->lockVisualizationServerMutex();
       world_.integrate();
