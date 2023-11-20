@@ -51,7 +51,7 @@ class AnymalController_20233536 {
     anymal_->setGeneralizedForce(Eigen::VectorXd::Zero(gvDim_));
 
     /// MUST BE DONE FOR ALL ENVIRONMENTS
-    obDim_ = 24;
+    obDim_ = 26;
     actionDim_ = nJoints_;
     actionMean_.setZero(actionDim_);
     actionStd_.setZero(actionDim_);
@@ -115,13 +115,38 @@ class AnymalController_20233536 {
     raisim::quatToRotMat(oppoquat, opporot);
     oppobodyLinearVel_ = opporot.e().transpose()*opponentGv.segment(0, 3);
     oppobodyAngularVel_ = opporot.e().transpose()*opponentGv.segment(3, 3);
+    
+    player_die = 0;
+    opponent_die = 0;
+
+    for(auto& contact: anymal_->getContacts()){
+      if(contact.getPairObjectIndex() == ground->getIndexInWorld() &&
+        contact.getlocalBodyIndex() == anymal_->getBodyIdx("base")){
+        player_die = 1;
+      }
+    }
+    if (gc_.head(2).norm() > 3) {
+      player_die = 1;
+    }
+
+    for(auto& contact_: opponent->getContacts()){
+      if(contact_.getPairObjectIndex() == ground->getIndexInWorld() &&
+        contact_.getlocalBodyIndex() == opponent->getBodyIdx("base")){
+        opponent_die = 1;
+      }
+    }
+    if (opponentGc.head(2).norm() > 3) {
+      opponent_die = 1;
+    }
 
     obDouble_ << gc_.head(3), /// body pose
         rot.e().row(2).transpose(), /// body orientation
         bodyLinearVel_, bodyAngularVel_, /// body linear&angular velocity
+        player_die,
         opponentGc.head(3), /// opponent pose
         opporot.e().row(2).transpose(), /// opponent body orientation
-        oppobodyLinearVel_, oppobodyAngularVel_; /// oppponent body linear&angular velocity
+        oppobodyLinearVel_, oppobodyAngularVel_, /// oppponent body linear&angular velocity
+        opponent_die;
   }
 
   inline void recordReward(Reward *rewards) {
@@ -144,13 +169,15 @@ class AnymalController_20233536 {
     // rewards->record("hit_oppo", opponent->getImpulse().squaredNorm());
     rewards->record("center_dist", exp(-gc_.head(2).norm()));
     // sparse part
+    if (!player_die && opponent_die) {
+      rewards->record("win", 5.0);
+    }
     // if (player_die() && opponent_die()) {
     //   rewards->record("draw", 2.5);
     // }
-
-    // if (!player_die() && opponent_die()) {
-    //   rewards->record("win", 5.0);
-    // }
+    if (player_die && !opponent_die) {
+      rewards->record("lose", 5.0);
+    }
   }
 
   inline const Eigen::VectorXd &getObservation() {
@@ -169,34 +196,8 @@ class AnymalController_20233536 {
     playerNum_ = playerNum;
   }
 
-  bool player_die(){
-    for(auto& contact: anymal_->getContacts()){
-      if(contact.getPairObjectIndex() == ground->getIndexInWorld() &&
-        contact.getlocalBodyIndex() == anymal_->getBodyIdx("base")){
-        return true;
-      }
-    }
-    if (gc_.head(2).norm() > 3) {
-      return true;
-    }
-    return false;
-  }
-
-  bool opponent_die(){
-    for(auto& contact: opponent->getContacts()){
-      if(contact.getPairObjectIndex() == ground->getIndexInWorld() &&
-        contact.getlocalBodyIndex() == opponent->getBodyIdx("base")){
-        return true;
-      }
-    }
-    if (opponentGc.head(2).norm() > 3) {
-      return true;
-    }
-    return false;
-  }
-
   inline bool isTerminalState(raisim::World *world) {
-    // std::vector<int> playerfootcontact_, playerbasecontact_, oppfootcontact_, oppbasecontact_, oppcontact_;
+    // std::vector<int> oppcontact_;
     // for (auto &contact: anymal_->getContacts()) {
     //   if (footIndices_.find(contact.getlocalBodyIndex()) == footIndices_.end()) {
     //     for (auto &contact_: opponent->getContacts()){
@@ -234,7 +235,7 @@ class AnymalController_20233536 {
   }
 
   inline int getActionDim() {
-    return actionDim_;
+    return actionDim_*2;
   }
 
 
@@ -252,7 +253,7 @@ class AnymalController_20233536 {
   std::set<size_t> footIndices_;
   std::vector<Eigen::VectorXd> action_set;
   int obDim_ = 0, actionDim_ = 0;
-  double rewaboutopo, oppositetouch_;
+  double player_die, opponent_die;
   double forwardVelRewardCoeff_ = 0.;
   double torqueRewardCoeff_ = 0.;
 };
