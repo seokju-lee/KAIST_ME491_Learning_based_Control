@@ -119,7 +119,7 @@ class ENVIRONMENT {
 
   int getObDim() { return controller_.getObDim(); }
 
-  int getActionDim() { return controller_.getActionDim(); }
+  int getActionDim() { return controller_.getActionDim()*2; }
 
   double getControlTimeStep() { return control_dt_; }
 
