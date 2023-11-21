@@ -105,6 +105,14 @@ for update in range(10001):
     done_sum = 0
     average_dones = 0.
 
+    if update % cfg['environment']['eval_every_n'] == 199:
+        torch.save({
+            'actor_architecture_state_dict': actor.architecture.state_dict(),
+            'actor_distribution_state_dict': actor.distribution.state_dict(),
+            'critic_architecture_state_dict': critic.architecture.state_dict(),
+            'optimizer_state_dict': ppo.optimizer.state_dict(),
+        }, saver.data_dir+"/full_"+str(update)+'.pt')
+
     if update % cfg['environment']['eval_every_n'] == 0:
         print("Visualizing and evaluating the current policy")
         torch.save({
@@ -116,12 +124,12 @@ for update in range(10001):
         # we create another graph just to demonstrate the save/load method
         loaded_graph = ppo_module.MLP(cfg['architecture']['policy_net'], nn.LeakyReLU, ob_dim, int(act_dim/2))
         loaded_graph.load_state_dict(torch.load(saver.data_dir+"/full_"+str(update)+'.pt')['actor_architecture_state_dict'])
-
+        
         prev_loaded_graph = ppo_module.MLP(cfg['architecture']['policy_net'], nn.LeakyReLU, ob_dim, int(act_dim/2))
         if update == 0:
             prev_loaded_graph = loaded_graph
         else:
-            prev_loaded_graph.load_state_dict(torch.load(saver.data_dir+"/full_"+str(update-200)+'.pt')['actor_architecture_state_dict'])
+            prev_loaded_graph.load_state_dict(torch.load(saver.data_dir+"/full_"+str(update-1)+'.pt')['actor_architecture_state_dict'])
 
         env.turn_on_visualization()
         env.start_video_recording(datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + "policy_"+str(update)+'.mp4')
