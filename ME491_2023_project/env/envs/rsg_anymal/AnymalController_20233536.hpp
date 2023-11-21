@@ -165,16 +165,13 @@ class AnymalController_20233536 {
     }
 
     rewards->record("torque", anymal_->getGeneralizedForce().squaredNorm());
-    // rewards->record("opp_center", exp(-opponentGc.head(2).norm()));
+    rewards->record("opp_center", exp(-opponentGc.head(2).norm()));
     // rewards->record("hit_oppo", opponent->getImpulse().squaredNorm());
     rewards->record("center_dist", exp(-gc_.head(2).norm()));
     // sparse part
     if (!player_die && opponent_die) {
       rewards->record("win", 5.0);
     }
-    // if (player_die() && opponent_die()) {
-    //   rewards->record("draw", 2.5);
-    // }
     if (player_die && !opponent_die) {
       rewards->record("lose", 5.0);
     }
@@ -235,7 +232,7 @@ class AnymalController_20233536 {
   }
 
   inline int getActionDim() {
-    return actionDim_*2;
+    return actionDim_;
   }
 
 
