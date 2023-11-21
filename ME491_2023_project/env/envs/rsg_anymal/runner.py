@@ -53,11 +53,11 @@ total_steps = n_steps * env.num_envs
 
 avg_rewards = []
 
-actor = ppo_module.Actor(ppo_module.MLP(cfg['architecture']['policy_net'], nn.LeakyReLU, ob_dim, act_dim),
-                         ppo_module.MultivariateGaussianDiagonalCovariance(act_dim,
+actor = ppo_module.Actor(ppo_module.MLP(cfg['architecture']['policy_net'], nn.LeakyReLU, ob_dim, int(act_dim/2)),
+                         ppo_module.MultivariateGaussianDiagonalCovariance(int(act_dim/2),
                                                                            env.num_envs,
                                                                            5.0,
-                                                                           NormalSampler(act_dim),
+                                                                           NormalSampler(int(act_dim/2)),
                                                                            cfg['seed']),
                          device)
 prev_actor = ppo_module.Actor(actor.architecture, actor.distribution, actor.device)
@@ -114,8 +114,14 @@ for update in range(10001):
             'optimizer_state_dict': ppo.optimizer.state_dict(),
         }, saver.data_dir+"/full_"+str(update)+'.pt')
         # we create another graph just to demonstrate the save/load method
-        loaded_graph = ppo_module.MLP(cfg['architecture']['policy_net'], nn.LeakyReLU, ob_dim, act_dim)
+        loaded_graph = ppo_module.MLP(cfg['architecture']['policy_net'], nn.LeakyReLU, ob_dim, int(act_dim/2))
         loaded_graph.load_state_dict(torch.load(saver.data_dir+"/full_"+str(update)+'.pt')['actor_architecture_state_dict'])
+
+        prev_loaded_graph = ppo_module.MLP(cfg['architecture']['policy_net'], nn.LeakyReLU, ob_dim, int(act_dim/2))
+        if update == 0:
+            prev_loaded_graph = loaded_graph
+        else:
+            prev_loaded_graph.load_state_dict(torch.load(saver.data_dir+"/full_"+str(update-200)+'.pt')['actor_architecture_state_dict'])
 
         env.turn_on_visualization()
         env.start_video_recording(datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + "policy_"+str(update)+'.mp4')
@@ -124,7 +130,12 @@ for update in range(10001):
             with torch.no_grad():
                 frame_start = time.time()
                 obs = env.observe(False)
-                action = loaded_graph.architecture(torch.from_numpy(obs).cpu())
+                first_obs = obs[:,:13]
+                second_obs = obs[:,13:]
+                oppobs = np.hstack((second_obs, first_obs))
+                action1 = loaded_graph.architecture(torch.from_numpy(obs).cpu())
+                action2 = prev_loaded_graph.architecture(torch.from_numpy(oppobs).cpu())
+                action = torch.hstack((action1, action2))
                 reward, dones = env.step(action.cpu().detach().numpy())
                 reward_analyzer.add_reward_info(env.get_reward_info())
                 frame_end = time.time()
@@ -155,25 +166,24 @@ for update in range(10001):
 
     # take st step to get value obs
     # if update % cfg['environment']['eval_every_n'] == 0:
-    prev_ppo = PPO.PPO(actor=prev_actor,
-                        critic=critic,
-                        num_envs=cfg['environment']['num_envs'],
-                        num_transitions_per_env=n_steps,
-                        num_learning_epochs=4,
-                        gamma=0.998,
-                        lam=0.95,
-                        num_mini_batches=4,
-                        device=device,
-                        log_dir=saver.data_dir,
-                        shuffle_batch=False,
-                        )
     prev_actor = ppo_module.Actor(actor.architecture, actor.distribution, actor.device)
     obs = env.observe()
     ppo.update(actor_obs=obs, value_obs=obs, log_this_iteration=update % 10 == 0, update=update)
     average_ll_performance = reward_sum / total_steps
     average_dones = done_sum / total_steps
     avg_rewards.append(average_ll_performance)
-
+    prev_ppo = PPO.PPO(actor=prev_actor,
+                    critic=critic,
+                    num_envs=cfg['environment']['num_envs'],
+                    num_transitions_per_env=n_steps,
+                    num_learning_epochs=4,
+                    gamma=0.998,
+                    lam=0.95,
+                    num_mini_batches=4,
+                    device=device,
+                    log_dir=saver.data_dir,
+                    shuffle_batch=False,
+                    )
     actor.update()
     actor.distribution.enforce_minimum_std((torch.ones(12)*0.2).to(device))
 
