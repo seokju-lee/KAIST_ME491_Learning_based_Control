@@ -139,7 +139,7 @@ class ENVIRONMENT {
 
  private:
   bool visualizable_ = false;
-  double terminalRewardCoeff_ = -10.;
+  double terminalRewardCoeff_ = -100.;
   TRAINING_CONTROLLER controller_, dummyController_;
   raisim::World world_;
   raisim::Reward rewards_;
