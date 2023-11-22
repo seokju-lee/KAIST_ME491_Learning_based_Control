@@ -12,21 +12,19 @@ environment:
   action_std: 0.1
   reward:
     forwardVel:
-      coeff: 0.3
+      coeff: 1.0
     opponentOri:
-      coeff: 1.5
+      coeff: 3.5
     opp_center:
-      coeff: -2e-4
-    hit_oppo:
-      coeff: 0.4
+      coeff: -8e-3
     center_dist:
-      coeff: 2e-4
+      coeff: 2e-3
     win:
       coeff: 1.0
     lose:
-      coeff: -1.0
-    draw:
-      coeff: -1.0   
+      coeff: -1.0 
+    contact_penalty:
+      coeff: -4e-4
     torque:
       coeff: -4e-5
 
