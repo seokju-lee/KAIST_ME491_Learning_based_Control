@@ -14,7 +14,6 @@ import numpy as np
 import torch
 import datetime
 import argparse
-import copy
 
 
 # task specification
@@ -98,7 +97,7 @@ reward_analyzer = RewardAnalyzer(env, ppo.writer)
 if mode == 'retrain':
     load_param(weight_path, env, actor, critic, ppo.optimizer, saver.data_dir)
 
-for update in range(10001):
+for update in range(50001):
     start = time.time()
     env.reset()
     reward_sum = 0
@@ -173,25 +172,13 @@ for update in range(10001):
         reward_sum = reward_sum + np.sum(reward)
 
     # take st step to get value obs
-    # if update % cfg['environment']['eval_every_n'] == 0:
     prev_actor = ppo_module.Actor(actor.architecture, actor.distribution, actor.device)
     obs = env.observe()
     ppo.update(actor_obs=obs, value_obs=obs, log_this_iteration=update % 10 == 0, update=update)
     average_ll_performance = reward_sum / total_steps
     average_dones = done_sum / total_steps
     avg_rewards.append(average_ll_performance)
-    prev_ppo = PPO.PPO(actor=prev_actor,
-                    critic=critic,
-                    num_envs=cfg['environment']['num_envs'],
-                    num_transitions_per_env=n_steps,
-                    num_learning_epochs=4,
-                    gamma=0.998,
-                    lam=0.95,
-                    num_mini_batches=4,
-                    device=device,
-                    log_dir=saver.data_dir,
-                    shuffle_batch=False,
-                    )
+
     actor.update()
     actor.distribution.enforce_minimum_std((torch.ones(12)*0.2).to(device))
 
