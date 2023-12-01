@@ -35,7 +35,6 @@ class AnymalController_20233536 {
     opponentGv.setZero(gvDim_);
     pTarget_.setZero(gcDim_);
     vTarget_.setZero(gvDim_);
-    o_pTarget_.setZero(gcDim_);
     pTarget12_.setZero(nJoints_);
 
     /// this is nominal configuration of anymal
@@ -51,11 +50,14 @@ class AnymalController_20233536 {
     anymal_->setGeneralizedForce(Eigen::VectorXd::Zero(gvDim_));
 
     /// MUST BE DONE FOR ALL ENVIRONMENTS
-    obDim_ = 26;
+    obDim_ = 52;
     actionDim_ = nJoints_;
     actionMean_.setZero(actionDim_);
     actionStd_.setZero(actionDim_);
     obDouble_.setZero(obDim_);
+    impulse_from_player = 0;
+    impulse_from_oppo = 0;
+
     // action_set.push_back(Eigen::VectorXd::Zero(gcDim_));
     /// action scaling
     actionMean_ = gc_init_.tail(nJoints_);
@@ -115,74 +117,77 @@ class AnymalController_20233536 {
     raisim::quatToRotMat(oppoquat, opporot);
     oppobodyLinearVel_ = opporot.e().transpose()*opponentGv.segment(0, 3);
     oppobodyAngularVel_ = opporot.e().transpose()*opponentGv.segment(3, 3);
-    
-    player_die = 0;
-    opponent_die = 0;
 
-    for(auto& contact: anymal_->getContacts()){
-      if(contact.getPairObjectIndex() == ground->getIndexInWorld() &&
-        contact.getlocalBodyIndex() == anymal_->getBodyIdx("base")){
-        player_die = 1;
-      }
-    }
-    if (gc_.head(2).norm() > 3) {
-      player_die = 1;
-    }
-
-    for(auto& contact_: opponent->getContacts()){
-      if(contact_.getPairObjectIndex() == ground->getIndexInWorld() &&
-        contact_.getlocalBodyIndex() == opponent->getBodyIdx("base")){
-        opponent_die = 1;
-      }
-    }
-    if (opponentGc.head(2).norm() > 3) {
-      opponent_die = 1;
-    }
+    relpos_ = rot.e().transpose()*(opponentGc.head(3) - gc_.head(3));    
+    opporelpos_ = opporot.e().transpose()*(gc_.head(3) - opponentGc.head(3));
 
     obDouble_ << gc_.head(3), /// body pose
         rot.e().row(2).transpose(), /// body orientation
         bodyLinearVel_, bodyAngularVel_, /// body linear&angular velocity
-        player_die,
+        relpos_.head(2),
+        gv_.tail(12),
         opponentGc.head(3), /// opponent pose
         opporot.e().row(2).transpose(), /// opponent body orientation
         oppobodyLinearVel_, oppobodyAngularVel_, /// oppponent body linear&angular velocity
-        opponent_die;
+        opporelpos_.head(2),
+        opponentGv.tail(12);
+  }
+
+  inline bool player_die_terminate(raisim::World *world){
+    // for(auto& contact: anymal_->getContacts()){
+    //   if(contact.getPairObjectIndex() == ground->getIndexInWorld() &&
+    //     footIndices_.find(contact.getlocalBodyIndex()) == footIndices_.end()){
+    //     return true;
+    //   }
+    // }
+    if ((gc_[2] < 0.3) | (gc_.head(2).norm() > 3)) {
+      return true;
+    }
+    return false;
+  }
+
+  inline bool opponent_die_terminate(raisim::World *world){
+    for(auto& contact: opponent->getContacts()){
+      if(contact.getPairObjectIndex() == ground->getIndexInWorld() &&
+        contact.getlocalBodyIndex() == opponent->getBodyIdx("base")){
+        return true;
+      }
+    }
+    if (opponentGc.head(2).norm() > 3) {
+      return true;
+    }
+    return false;
   }
 
   inline void recordReward(Reward *rewards) {
-    rewards->record("forwardVel", std::min(4.0, bodyLinearVel_[0]));
     Eigen::VectorXd target_vector, target_direction, base_direction;
-    double cosine, roll, pitch;
-    bool not_foot = false;
-    target_vector = opponentGc.head(2) - gc_.head(2);
-    target_direction = target_vector/target_vector.norm();
-    base_direction = gc_.head(2)/gc_.head(2).norm();
-    cosine = target_direction.dot(base_direction);
-    if(cosine < 0){
-      rewards->record("opponentOri", 0);
-    }
-    else{
-      rewards->record("opponentOri", cosine);
-    }
-    for(auto& contact: anymal_->getContacts()){
-      if(footIndices_.find(contact.getlocalBodyIndex()) == footIndices_.end() &&
-        contact.getPairObjectIndex() == ground->getIndexInWorld()){
-        not_foot = true;
-      }
-    }
-    if(not_foot){
-      rewards->record("contact_penalty", 1.0);
-    }
+    double cosine, roll, pitch, oppo_roll, oppo_pitch;
+    target_direction = relpos_.head(2)/relpos_.head(2).norm();
+    cosine = target_direction.dot(bodyLinearVel_.head(2));
+
+    rewards->record("heading", std::max(cosine, 0.0));
+
+    // if((gc_.head(2)-opponentGc.head(2)).norm() > 0.2){
     rewards->record("torque", anymal_->getGeneralizedForce().squaredNorm());
-    rewards->record("opp_center", exp(-opponentGc.head(2).norm()));
+    // }
+    // // else{
+    //    for(auto& oppcontact: opponent->getContacts()){
+    //     if(oppcontact.getPairObjectIndex() == anymal_->getIndexInWorld() &&
+    //       oppcontact.getlocalBodyIndex() == opponent->getBodyIdx("base")){
+    //       rewards->record("impulse",(oppcontact.getContactFrame().e().transpose() * oppcontact.getImpulse().e()).squaredNorm());
+    //       // if(oppcontact.getlocalBodyIndex() == opponent->getBodyIdx("base")){
+    //       // rewards->record("contact_base", 1.0);
+    //       //   // rewards->record("forwardVel_after_collision", std::min(4.0, std::max(bodyLinearVel_[0], 0.0)));
+    //       // }
+    //       // rewards->record("torque", (1e-2)*(anymal_->getGeneralizedForce().squaredNorm()));
+    //     }
+    //     // std::cout << "Impulse: " << (oppcontact.getContactFrame().e().transpose() * oppcontact.getImpulse().e()).squaredNorm() << "\n";
+    //   }
+    // }
+    rewards->record("joint_vel", gv_.tail(12).squaredNorm());
+    // rewards->record("base_height", exp(-abs(gc_[2]-0.50)));
+    rewards->record("opp_center", -exp(-opponentGc.head(2).norm()));
     rewards->record("center_dist", exp(-gc_.head(2).norm()));
-    // sparse part
-    if (!player_die && opponent_die) {
-      rewards->record("win", 50.0);
-    }
-    if (player_die && !opponent_die) {
-      rewards->record("lose", 50.0);
-    }
   }
 
   inline const Eigen::VectorXd &getObservation() {
@@ -230,14 +235,14 @@ class AnymalController_20233536 {
   raisim::Ground *ground;
   Eigen::VectorXd gc_init_, gv_init_, gc_, gv_, opponentGc, opponentGv, pTarget_, pTarget12_, vTarget_, o_pTarget_;
   Eigen::VectorXd actionMean_, actionStd_, obDouble_;
-  Eigen::Vector3d bodyLinearVel_, bodyAngularVel_;
-  Eigen::Vector3d oppobodyLinearVel_, oppobodyAngularVel_;
+  Eigen::Vector3d bodyLinearVel_, bodyAngularVel_, relpos_;
+  Eigen::Vector3d oppobodyLinearVel_, oppobodyAngularVel_, opporelpos_;
   raisim::Vec<4> quat, oppoquat;
   raisim::Mat<3, 3> rot, opporot;
   std::set<size_t> footIndices_;
   std::vector<Eigen::VectorXd> action_set;
   int obDim_ = 0, actionDim_ = 0;
-  double player_die, opponent_die;
+  double impulse_from_player, impulse_from_oppo;
   double forwardVelRewardCoeff_ = 0.;
   double torqueRewardCoeff_ = 0.;
 };
