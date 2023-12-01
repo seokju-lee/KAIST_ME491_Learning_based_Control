@@ -28,7 +28,7 @@ class ENVIRONMENT {
   explicit ENVIRONMENT(const std::string &resourceDir, const Yaml::Node &cfg, bool visualizable) :
       visualizable_(visualizable) {
     /// add objects
-    auto* robot = world_.addArticulatedSystem(resourceDir + "/anymal/urdf/anymal.urdf");
+    auto* robot = world_.addArticulatedSystem(resourceDir + "/anymal/urdf/anymal_red.urdf");
     robot->setName(PLAYER_NAME);
     robot->setControlMode(raisim::ControlMode::PD_PLUS_FEEDFORWARD_TORQUE);
     controller_.setPlayerNum(0);
@@ -70,16 +70,15 @@ class ENVIRONMENT {
     auto theta = uniDist_(gen_) * 2 * M_PI;
     controller_.reset(&world_, theta);
     dummyController_.reset(&world_, theta);
+    timer_ = 0;
   }
 
   float step(const Eigen::Ref<EigenVec> &action) {
+    timer_ += 1;
     EigenVec headPart = action.head(12);
     controller_.advance(&world_, headPart);
-    // std::cout << "Action size: " << action.size() << "\n";
     EigenVec tailPart = action.tail(12);
     dummyController_.advance(&world_, tailPart);
-    // std::cout << "Head Part: \n" << headPart << "\n";
-    // std::cout << "Tail Part: \n" << tailPart << "\n";
     for (int i = 0; i < int(control_dt_ / simulation_dt_ + 1e-10); i++) {
       if (server_) server_->lockVisualizationServerMutex();
       world_.integrate();
@@ -97,8 +96,24 @@ class ENVIRONMENT {
   }
 
   bool isTerminalState(float &terminalReward) {
-    if(controller_.isTerminalState(&world_)) {
-      terminalReward = terminalRewardCoeff_;
+    // if(controller_.isTerminalState(&world_)) {
+    //   terminalReward = terminalRewardCoeff_;
+    //   return true;
+    // }
+    if(!controller_.player_die_terminate(&world_) && controller_.opponent_die_terminate(&world_)){
+      terminalReward = 100.f;
+      return true;
+    }
+    if(controller_.player_die_terminate(&world_) && !controller_.opponent_die_terminate(&world_)){
+      terminalReward = -100.f;
+      return true;
+    }
+    if(controller_.player_die_terminate(&world_) && controller_.opponent_die_terminate(&world_)){
+      terminalReward = -50.f;
+      return true;
+    }
+    if(timer_ > 10 * 100){
+      terminalReward = -50.f;
       return true;
     }
     terminalReward = 0.f;
@@ -138,6 +153,7 @@ class ENVIRONMENT {
   raisim::Reward& getRewards() { return rewards_; }
 
  private:
+  int timer_ = 0;
   bool visualizable_ = false;
   double terminalRewardCoeff_ = -100.;
   TRAINING_CONTROLLER controller_, dummyController_;
