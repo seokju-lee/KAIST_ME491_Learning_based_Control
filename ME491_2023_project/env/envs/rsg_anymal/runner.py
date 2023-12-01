@@ -137,8 +137,8 @@ for update in range(50001):
             with torch.no_grad():
                 frame_start = time.time()
                 obs = env.observe(False)
-                first_obs = obs[:,:13]
-                second_obs = obs[:,13:]
+                first_obs = obs[:,:26]
+                second_obs = obs[:,26:]
                 oppobs = np.hstack((second_obs, first_obs))
                 action1 = loaded_graph.architecture(torch.from_numpy(obs).cpu())
                 action2 = prev_loaded_graph.architecture(torch.from_numpy(oppobs).cpu())
@@ -160,8 +160,8 @@ for update in range(50001):
     # actual training
     for step in range(n_steps):
         obs = env.observe()
-        first_obs = obs[:,:13]
-        second_obs = obs[:,13:]
+        first_obs = obs[:,:26]
+        second_obs = obs[:,26:]
         oppobs = np.hstack((second_obs, first_obs))
         action1 = ppo.act(obs)
         action2 = prev_ppo.act(oppobs)
