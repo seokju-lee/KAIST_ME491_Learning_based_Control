@@ -134,12 +134,6 @@ class AnymalController_20233536 {
   }
 
   inline bool player_die_terminate(raisim::World *world){
-    // for(auto& contact: anymal_->getContacts()){
-    //   if(contact.getPairObjectIndex() == ground->getIndexInWorld() &&
-    //     footIndices_.find(contact.getlocalBodyIndex()) == footIndices_.end()){
-    //     return true;
-    //   }
-    // }
     if ((gc_[2] < 0.3) | (gc_.head(2).norm() > 3)) {
       return true;
     }
@@ -164,28 +158,15 @@ class AnymalController_20233536 {
     double cosine, roll, pitch, oppo_roll, oppo_pitch;
     target_direction = relpos_.head(2)/relpos_.head(2).norm();
     cosine = target_direction.dot(bodyLinearVel_.head(2));
-
-    rewards->record("heading", std::max(cosine, 0.0));
-
-    // if((gc_.head(2)-opponentGc.head(2)).norm() > 0.2){
+   for(auto& oppcontact: opponent->getContacts()){
+     if(oppcontact.getPairObjectIndex() == anymal_->getIndexInWorld() &&
+       oppcontact.getlocalBodyIndex() == opponent->getBodyIdx("base")){
+       rewards->record("impulse", (oppcontact.getContactFrame().e().transpose() * oppcontact.getImpulse().e()).norm());
+     }
+   }
     rewards->record("torque", anymal_->getGeneralizedForce().squaredNorm());
-    // }
-    // // else{
-    //    for(auto& oppcontact: opponent->getContacts()){
-    //     if(oppcontact.getPairObjectIndex() == anymal_->getIndexInWorld() &&
-    //       oppcontact.getlocalBodyIndex() == opponent->getBodyIdx("base")){
-    //       rewards->record("impulse",(oppcontact.getContactFrame().e().transpose() * oppcontact.getImpulse().e()).squaredNorm());
-    //       // if(oppcontact.getlocalBodyIndex() == opponent->getBodyIdx("base")){
-    //       // rewards->record("contact_base", 1.0);
-    //       //   // rewards->record("forwardVel_after_collision", std::min(4.0, std::max(bodyLinearVel_[0], 0.0)));
-    //       // }
-    //       // rewards->record("torque", (1e-2)*(anymal_->getGeneralizedForce().squaredNorm()));
-    //     }
-    //     // std::cout << "Impulse: " << (oppcontact.getContactFrame().e().transpose() * oppcontact.getImpulse().e()).squaredNorm() << "\n";
-    //   }
-    // }
+    rewards->record("heading", std::max(cosine, 0.0));
     rewards->record("joint_vel", gv_.tail(12).squaredNorm());
-    // rewards->record("base_height", exp(-abs(gc_[2]-0.50)));
     rewards->record("opp_center", -exp(-opponentGc.head(2).norm()));
     rewards->record("center_dist", exp(-gc_.head(2).norm()));
   }
