@@ -30,7 +30,7 @@ class ENVIRONMENT_for_test {
     robot->setName(PLAYER1_NAME);
     std::cout<<"player 1 name: "<<PLAYER1_NAME<<std::endl;
     robot->setControlMode(raisim::ControlMode::PD_PLUS_FEEDFORWARD_TORQUE);
-
+    controller_.setPlayerNum(0);
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
     /// if you want make opponent robot, use like below code (but in Environment.hpp, there exist only PLAYER_NAME in definition. So use any name for opponent robot name setting.
@@ -38,7 +38,7 @@ class ENVIRONMENT_for_test {
     dummy_robot->setName(PLAYER2_NAME);
     std::cout<<"player 2 name: "<<PLAYER2_NAME<<std::endl;
     dummy_robot->setControlMode(raisim::ControlMode::PD_PLUS_FEEDFORWARD_TORQUE);
-
+    dummyController_.setPlayerNum(1);
 
     controller_.setName(PLAYER1_NAME);
     controller_.setOpponentName(PLAYER2_NAME);
@@ -79,8 +79,12 @@ class ENVIRONMENT_for_test {
 
   void step(const Eigen::Ref<EigenVec> &action) {
     timer_ += 1;
-    controller_.advance(&world_, action);
-    dummyController_.advance(&world_, action);
+    // controller_.advance(&world_, action);
+    // dummyController_.advance(&world_, action);
+    EigenVec headPart = action.head(12);
+    controller_.advance(&world_, headPart);
+    EigenVec tailPart = action.tail(12);
+    dummyController_.advance(&world_, tailPart);
     for (int i = 0; i < int(control_dt_ / simulation_dt_ + 1e-10); i++) {
       if (server_) server_->lockVisualizationServerMutex();
       world_.integrate();
@@ -188,7 +192,7 @@ class ENVIRONMENT_for_test {
 
   int getObDim() { return controller_.getObDim(); }
 
-  int getActionDim() { return controller_.getActionDim(); }
+  int getActionDim() { return controller_.getActionDim()*2; }
 
   double getControlTimeStep() { return control_dt_; }
 
@@ -208,8 +212,8 @@ class ENVIRONMENT_for_test {
   int timer_ = 0;
   int player1_win = 0, player2_win = 0, draw = 0, terminal = 0;
   bool visualizable_ = false;
-  PLAYER1_CONTROLLER controller_;
-  PLAYER2_CONTROLLER dummyController_;
+  PLAYER1_CONTROLLER controller_, dummyController_;
+  // PLAYER2_CONTROLLER dummyController_;
   raisim::World world_;
   double simulation_dt_ = 0.001;
   double control_dt_ = 0.01;
