@@ -8,6 +8,7 @@ import time
 import torch
 import argparse
 import re
+import numpy as np
 
 # directories
 task_path = os.path.dirname(os.path.realpath(__file__))
@@ -60,8 +61,10 @@ else:
     start_step_id = 0
 
     print("Visualizing and evaluating the policy: ", weight_path)
-    loaded_graph = ppo_module.MLP(cfg['architecture']['policy_net'], torch.nn.LeakyReLU, ob_dim, act_dim)
+    loaded_graph = ppo_module.MLP(cfg['architecture']['policy_net'], torch.nn.LeakyReLU, ob_dim, int(act_dim/2))
     loaded_graph.load_state_dict(torch.load(weight_path)['actor_architecture_state_dict'])
+    loaded_graph_oppo = ppo_module.MLP(cfg['architecture']['policy_net'], torch.nn.LeakyReLU, ob_dim, int(act_dim/2))
+    loaded_graph_oppo.load_state_dict(torch.load(weight_dir+"/full_"+str(0)+'.pt')['actor_architecture_state_dict'])
 
     env.load_scaling(weight_dir, int(iteration_number))
 
@@ -71,8 +74,13 @@ else:
         with torch.no_grad():
             frame_start = time.time()
             obs = env.observe(False)
-            action_ll = loaded_graph.architecture(torch.from_numpy(obs).cpu()).cpu().detach().numpy()
-            env.step(action_ll)
+            first_obs = obs[:,:26]
+            second_obs = obs[:,26:]
+            oppobs = np.hstack((second_obs, first_obs))
+            action1 = loaded_graph.architecture(torch.from_numpy(obs).cpu())
+            action2 = loaded_graph_oppo.architecture(torch.from_numpy(oppobs).cpu())
+            action_ll = torch.hstack((action1, action2))
+            env.step(action_ll.cpu().detach().numpy())
             frame_end = time.time()
             wait_time = cfg['environment']['control_dt'] - (frame_end-frame_start)
             if wait_time > 0.:
