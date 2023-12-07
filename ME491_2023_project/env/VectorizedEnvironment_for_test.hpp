@@ -58,10 +58,10 @@ class VectorizedEnvironment_for_test {
       environments_[i]->reset();
   }
 
-  void observe(Eigen::Ref<EigenRowMajorMat> &ob) {
+  void observe(Eigen::Ref<EigenRowMajorMat> &ob, Eigen::Ref<EigenRowMajorMat> &oppob) {
 #pragma omp parallel for schedule(auto)
     for (int i = 0; i < num_envs_; i++)
-      environments_[i]->observe(ob.row(i));
+      environments_[i]->observe(ob.row(i), oppob.row(i));
   }
 
   void step(Eigen::Ref<EigenRowMajorMat> &action) {
