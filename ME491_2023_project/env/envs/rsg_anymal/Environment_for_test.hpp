@@ -94,10 +94,11 @@ class ENVIRONMENT_for_test {
     dummyController_.updateObservation(&world_);
   }
 
-  void observe(Eigen::Ref<EigenVec> ob) {
+  void observe(Eigen::Ref<EigenVec> ob, Eigen::Ref<EigenVec> oppob) {
     controller_.updateObservation(&world_);
     dummyController_.updateObservation(&world_);
     ob = controller_.getObservation().cast<float>();
+    oppob = dummyController_.getObservation().cast<float>();
   }
 
   bool player1_die() {
@@ -222,4 +223,3 @@ class ENVIRONMENT_for_test {
   std::mt19937 gen_;
 };
 }
-
