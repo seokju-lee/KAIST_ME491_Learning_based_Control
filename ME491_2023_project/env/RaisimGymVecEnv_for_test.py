@@ -21,7 +21,9 @@ class RaisimGymVecEnv:
         self.num_obs = self.wrapper.getObDim()
         self.num_acts = self.wrapper.getActionDim()
         self._observation = np.zeros([self.num_envs, self.num_obs], dtype=np.float32)
+        self._oppobservation = np.zeros([self.num_envs, self.num_obs], dtype=np.float32)
         self.obs_rms = RunningMeanStd(shape=[self.num_envs, self.num_obs])
+        self.oppobs_rms = RunningMeanStd(shape=[self.num_envs, self.num_obs])
 
     def seed(self, seed=None):
         self.wrapper.setSeed(seed)
@@ -44,12 +46,17 @@ class RaisimGymVecEnv:
     def step(self, action):
         self.wrapper.step(action)
 
-    def load_scaling(self, dir_name, iteration, count=1e5):
+    def load_scaling(self, dir_name, iteration, oppiteration, count=1e5):
         mean_file_name = dir_name + "/mean" + str(iteration) + ".csv"
         var_file_name = dir_name + "/var" + str(iteration) + ".csv"
         self.obs_rms.count = count
         self.obs_rms.mean = np.loadtxt(mean_file_name, dtype=np.float32)
         self.obs_rms.var = np.loadtxt(var_file_name, dtype=np.float32)
+        mean_file_name_opp = dir_name + "/mean" + str(oppiteration) + ".csv"
+        var_file_name_opp = dir_name + "/var" + str(oppiteration) + ".csv"
+        self.oppobs_rms.count = count
+        self.oppobs_rms.mean = np.loadtxt(mean_file_name_opp, dtype=np.float32)
+        self.oppobs_rms.var = np.loadtxt(var_file_name_opp, dtype=np.float32)
 
     def save_scaling(self, dir_name, iteration):
         mean_file_name = dir_name + "/mean" + iteration + ".csv"
@@ -58,27 +65,29 @@ class RaisimGymVecEnv:
         np.savetxt(var_file_name, self.obs_rms.var)
 
     def observe(self, update_mean=True):
-        self.wrapper.observe(self._observation)
+        self.wrapper.observe(self._observation, self._oppobservation)
 
         if self.normalize_ob:
             if update_mean:
                 self.obs_rms.update(self._observation)
-
-            return self._normalize_observation(self._observation).copy()
+                self.oppobs_rms.update(self._oppobservation)
+            
+            normalized_observation = self._normalize_observation(self._observation, self._oppobservation)
+            return tuple(np.copy(obs) for obs in normalized_observation)
         else:
-            return self._observation.copy()
+            return self._observation.copy(), self._oppobservation.copy()
 
     def reset(self):
         self._reward = np.zeros(self.num_envs, dtype=np.float32)
         self.wrapper.reset()
 
-    def _normalize_observation(self, obs):
+    def _normalize_observation(self, obs, oppobs):
         if self.normalize_ob:
-
             return np.clip((obs - self.obs_rms.mean) / np.sqrt(self.obs_rms.var + 1e-8), -self.clip_obs,
+                           self.clip_obs), np.clip((oppobs - self.oppobs_rms.mean) / np.sqrt(self.oppobs_rms.var + 1e-8), -self.clip_obs,
                            self.clip_obs)
         else:
-            return obs
+            return obs, oppobs
 
     def close(self):
         self.wrapper.close()
